@@ -32,6 +32,44 @@ Streamlit — Dashboard UI
 - Searchable object history
 - Saves snapshot frames every 5 minutes
 - Swappable camera source — webcam, phone, IP cam
+- AI-generated 5-minute interval summaries via Event History tab
+
+---
+
+## Event History & Interval Summaries
+
+Every 5 minutes, the system automatically generates an AI-powered summary paragraph of everything observed at the desk during that interval. These summaries are stored in the SQLite database and accessible via the **Event History** tab in the dashboard.
+
+### What the summary captures
+
+- Which objects or people were present and for how long
+- Notable absences during the interval
+- How many times a previously absent subject returned
+- Any patterns worth flagging
+
+### Example summary
+
+> "During the 5-minute interval from 14:30 to 14:35, a person was present at the desk for approximately 3 minutes before leaving. The laptop remained active throughout the interval. The desk was unoccupied for the final 2 minutes, which may indicate a short break or distraction."
+
+### Workplace monitoring use case
+
+When deployed in an office environment via a fixed camera mount or existing CCTV, the system can passively track desk occupancy and generate per-interval reports. Managers can review the Event History tab to understand:
+
+| What | How the system tracks it |
+|---|---|
+| Desk occupancy | Person detected / absent duration |
+| Break patterns | Repeated absence in short intervals |
+| Focus time | Continuous presence at desk |
+| Return frequency | How often absent subjects returned |
+
+### Accessing summaries
+
+1. Run the app and click **Start**
+2. Navigate to the **Event History** tab
+3. Summaries appear automatically every 5 minutes
+4. Click **Refresh History** to load the latest entries
+
+> **Note:** For testing, set `SUMMARY_INTERVAL = 30` in `context_engine.py` to generate summaries every 30 seconds instead of every 5 minutes.
 
 ---
 
@@ -55,6 +93,7 @@ pip install -r requirements.txt
 ```
 
 ### 4. Set up environment variables
+
 Create a `.env` file in the root folder:
 ```
 GROQ_API_KEY=your_groq_api_key_here
@@ -72,8 +111,8 @@ streamlit run main.py
 
 Open `detector.py` and change the `SOURCE` variable:
 ```python
-SOURCE = 0                              # Laptop webcam
-SOURCE = 1                              # DroidCam USB (Android)
+SOURCE = 0                                 # Laptop webcam
+SOURCE = 1                                 # DroidCam USB (Android)
 SOURCE = "http://192.168.x.x:8080/video"  # IP Webcam stream
 ```
 
@@ -103,42 +142,3 @@ visual-memory-lane/
 - Smart glasses input
 - Fine-tuned model for desk environment
 - Multimodal LLM — send raw frames instead of text labels
-```
-## Event History & Interval Summaries
-
-Every 5 minutes, the system automatically generates an AI-powered summary paragraph 
-of everything observed at the desk during that interval. These summaries are stored 
-in the SQLite database and accessible via the **Event History** tab in the dashboard.
-
-### What the summary captures
-- Which objects or people were present and for how long
-- Notable absences during the interval
-- How many times a previously absent subject returned
-- Any patterns worth flagging
-
-### Example summary
-> "During the 5-minute interval from 14:30 to 14:35, a person was present at the desk 
-> for approximately 3 minutes before leaving. The laptop remained active throughout the 
-> interval. The desk was unoccupied for the final 2 minutes, which may indicate a short 
-> break or distraction."
-
-### Workplace monitoring use case
-When deployed in an office environment via a fixed camera mount or existing CCTV, 
-the system can passively track desk occupancy and generate per-interval reports. 
-Managers can review the Event History tab to understand:
-
-| What | How the system tracks it |
-|---|---|
-| Desk occupancy | Person detected / absent duration |
-| Break patterns | Repeated absence in short intervals |
-| Focus time | Continuous presence at desk |
-| Return frequency | How often absent subjects returned |
-
-### Accessing summaries
-1. Run the app and click **Start**
-2. Navigate to the **Event History** tab
-3. Summaries appear automatically every 5 minutes
-4. Click **Refresh History** to load the latest entries
-
-> **Note:** For testing, set `SUMMARY_INTERVAL = 30` in `context_engine.py` 
-> to generate summaries every 30 seconds instead of every 5 minutes.
