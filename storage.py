@@ -33,6 +33,14 @@ def init_db():
             detail TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS interval_summary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            interval_start TEXT,
+            interval_end TEXT,
+            summary TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -105,3 +113,42 @@ def get_latest_llm():
     result = cursor.fetchone()
     conn.close()
     return result
+# --------------------------------Summanry Table Feature-------------------------------
+def init_summary_table():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS interval_summary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            interval_start TEXT,
+            interval_end TEXT,
+            summary TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def log_summary(interval_start, interval_end, summary):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO interval_summary (interval_start, interval_end, summary)
+        VALUES (?, ?, ?)
+    ''', (interval_start, interval_end, summary))
+    conn.commit()
+    conn.close()
+
+def get_summaries(limit=20):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT interval_start, interval_end, summary
+        FROM interval_summary
+        ORDER BY interval_start DESC
+        LIMIT ?
+    ''', (limit,))
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+#------------------------end of summary Table Feature--------------------------

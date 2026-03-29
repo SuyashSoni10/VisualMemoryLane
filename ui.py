@@ -15,6 +15,8 @@ from storage import init_db, search_objects, get_recent_logs, get_latest_llm, lo
 import logging
 import warnings
 
+from storage import init_db, search_objects, get_recent_logs, get_latest_llm, get_summaries
+
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 warnings.filterwarnings("ignore")
 
@@ -148,30 +150,39 @@ def main():
                 st.warning("No results found.")
 
     # --- TAB 3: Log ---
-    # --- TAB 3: Log ---
+    # --- TAB 3: Event History ---
     with tab3:
-        st.subheader("Recent Action Log")
+        st.subheader("5-Minute Interval Summaries")
+        st.caption("AI-generated summary of what was observed at the desk every 5 minutes.")
     
-        logs = get_recent_logs(20)
-        if logs:
-            for log in logs:
-                col_time, col_type, col_detail = st.columns([2, 2, 5])
-                with col_time:
-                    st.caption(log[0])
-                with col_type:
-                    st.markdown(f"`{log[1]}`")
-                with col_detail:
-                    st.write(log[2])
-        else:
-            st.info("No actions logged yet.")
+        summaries = get_summaries(20)
     
-        st.divider()
-        st.subheader("Latest AI Suggestion")
-        latest = get_latest_llm()
-        if latest:
-            st.success(f"**{latest[0]}** — {latest[1]}")
+        if summaries:
+            # Build table data
+            table_data = []
+            for s in summaries:
+                table_data.append({
+                    "Time Interval": f"{s[0]}  →  {s[1]}",
+                    "Summary": s[2]
+                })
+    
+            # Display as styled table
+            for row in table_data:
+                with st.container():
+                    col_time, col_summary = st.columns([2, 5])
+                    with col_time:
+                        st.markdown(f"**{row['Time Interval']}**")
+                    with col_summary:
+                        st.write(row["Summary"])
+                    st.divider()
         else:
-            st.info("No AI suggestions yet.")
+            st.info("No summaries yet. Summaries are generated every 5 minutes while the feed is running.")
+    
+        if st.button("Refresh History"):
+            st.rerun()
+    
+
+
 
 if __name__ == "__main__":
     main()
