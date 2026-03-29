@@ -104,17 +104,3 @@ visual-memory-lane/
 - Fine-tuned model for desk environment
 - Multimodal LLM — send raw frames instead of text labels
 ```
-
----
-
-## Step 17 — Create `.gitignore`
-
-Create `.gitignore` in `visual-memory-lane/`:
-```
-venv/
-.env
-frames/
-__pycache__/
-*.pyc
-memory.db
-*.pt
