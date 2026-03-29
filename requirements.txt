@@ -1,0 +1,7 @@
+ultralytics
+opencv-python
+groq
+streamlit
+plyer
+python-dotenv
+Pillow
