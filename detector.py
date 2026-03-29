@@ -1,5 +1,6 @@
 import cv2
 from ultralytics import YOLO
+import logging
 
 # Change this to switch camera source:
 # 0 = laptop webcam
@@ -10,7 +11,8 @@ SOURCE = 0
 class Detector:
     def __init__(self, source=SOURCE):
         # Load the smallest YOLOv8 model — fast and accurate enough
-        self.model = YOLO("yolov8n.pt")
+        logging.getLogger("ultralytics").setLevel(logging.WARNING)
+        self.model = YOLO("yolov8n.pt", verbose=False)
         self.source = source
         self.cap = None
 

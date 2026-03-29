@@ -12,6 +12,12 @@ from tracker import ObjectTracker
 from context_engine import ContextEngine
 from storage import init_db, search_objects, get_recent_logs, get_latest_llm, log_object
 
+import logging
+import warnings
+
+logging.getLogger("ultralytics").setLevel(logging.WARNING)
+warnings.filterwarnings("ignore")
+
 # Initialize DB on startup
 init_db()
 
@@ -142,19 +148,23 @@ def main():
                 st.warning("No results found.")
 
     # --- TAB 3: Log ---
+    # --- TAB 3: Log ---
     with tab3:
         st.subheader("Recent Action Log")
-
-        if st.button("Refresh Log"):
-            pass
-
+    
         logs = get_recent_logs(20)
         if logs:
             for log in logs:
-                st.markdown(f"- `{log[0]}` — **{log[1]}** — {log[2]}")
+                col_time, col_type, col_detail = st.columns([2, 2, 5])
+                with col_time:
+                    st.caption(log[0])
+                with col_type:
+                    st.markdown(f"`{log[1]}`")
+                with col_detail:
+                    st.write(log[2])
         else:
             st.info("No actions logged yet.")
-
+    
         st.divider()
         st.subheader("Latest AI Suggestion")
         latest = get_latest_llm()

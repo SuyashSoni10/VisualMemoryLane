@@ -1,0 +1,8 @@
+[global]
+developmentMode = false
+
+[logger]
+level = "error"
+
+[client]
+showErrorDetails = false
