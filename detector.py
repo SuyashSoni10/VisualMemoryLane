@@ -6,7 +6,7 @@ import logging
 # 0 = laptop webcam
 # 1 = DroidCam USB (Android)
 # "http://192.168.x.x:8080/video" = IP Webcam stream
-SOURCE = 0
+SOURCE = "http://172.25.219.52:8080/video"
 
 class Detector:
     def __init__(self, source=SOURCE):

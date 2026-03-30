@@ -62,6 +62,30 @@ def main():
         with col2:
             st.subheader("Scene State")
             scene_placeholder = st.empty()
+            # Category selector
+            st.subheader("User Category")
+            category = st.selectbox(
+                "Who is being monitored?",
+                options=[
+                    "Student",
+                    "Patient (Alzheimer's)",
+                    "Employee",
+                    "Coach",
+                    "Teacher",
+                    "Personal"
+                ],
+                index=5  # Default to Personal
+            )
+            
+            category_descriptions = {
+                "Student": "📚 Educational scaffolding and study habit reminders.",
+                "Patient (Alzheimer's)": "🤍 Gentle, simple, empathetic guidance.",
+                "Employee": "💼 Professional efficiency and productivity focus.",
+                "Coach": "🏆 Motivation, performance metrics, tough love.",
+                "Teacher": "🎓 Pedagogy, lesson flow, classroom management.",
+                "Personal": "😊 Warm, casual, daily life assistance."
+            }
+            st.caption(category_descriptions[category])
 
         st.divider()
         st.subheader("AI Suggestion")
@@ -80,7 +104,7 @@ def main():
         if st.session_state.running:
             detector = Detector()
             tracker = ObjectTracker()
-            engine = ContextEngine()
+            engine = ContextEngine(category=category)
             detector.start()
 
             last_frame_save = time.time()
@@ -125,6 +149,7 @@ def main():
 
                 # Display LLM suggestion
                 if suggestion:
+                    st.markdown(f"**Category:** `{category}`")
                     suggestion_placeholder.info(
                         f"**{suggestion_time}** — {suggestion}"
                     )
