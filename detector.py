@@ -1,3 +1,4 @@
+import streamlit as st
 import cv2
 from ultralytics import YOLO
 import logging
@@ -6,36 +7,27 @@ import logging
 # 0 = laptop webcam
 # 1 = DroidCam USB (Android)
 # "http://192.168.x.x:8080/video" = IP Webcam stream
+#SOURCE = "http://172.25.235.218:8080/video"
 SOURCE = 0
 class Detector:
-    def __init__(self, source=SOURCE):
+    def __init__(self, source=None):
         # Load the smallest YOLOv8 model — fast and accurate enough
         logging.getLogger("ultralytics").setLevel(logging.WARNING)
         self.model = YOLO("yolov8n.pt", verbose=False)
-        self.source = source
+        self.source = source if source is not None else SOURCE
         self.cap = None
-
+    
     def start(self):
         self.cap = cv2.VideoCapture(self.source)
-        # if not self.cap.isOpened():
-        #     raise RuntimeError(f"Could not open camera source: {self.source}")
-        if st.session_state.running:
-            detector = Detector(source=source)
-            tracker = ObjectTracker()
-            engine = ContextEngine(
-                category=category,
-                alert_rules=st.session_state.alert_rules,
-                llm_interval=llm_interval,
-                summary_interval=summary_interval
-            )
         
-            try:
-                detector.start()
-            except RuntimeError as e:
-                st.error(f"Camera error: {str(e)}. Check your camera source in the sidebar.")
-                st.session_state.running = False
-                st.stop()
-
+        # Set timeout for IP streams so it fails fast instead of hanging
+        if isinstance(self.source, str):
+            self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+            self.cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+        
+        if not self.cap.isOpened():
+            raise RuntimeError(f"Could not open camera source: {self.source}")
+    
     def stop(self):
         if self.cap:
             self.cap.release()

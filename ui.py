@@ -2,29 +2,24 @@ import streamlit as st
 import cv2
 import time
 import os
-import threading
 from datetime import datetime
 from PIL import Image
 import numpy as np
+import pandas as pd
+import logging
+import warnings
 
 from detector import Detector
 from tracker import ObjectTracker
 from context_engine import ContextEngine
-from storage import init_db, search_objects, get_recent_logs, get_latest_llm, log_object
-
-import logging
-import warnings
-
-from storage import init_db, search_objects, get_recent_logs, get_latest_llm, get_summaries
+from storage import init_db, search_objects, get_recent_logs, get_latest_llm, get_summaries, log_object
 
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 warnings.filterwarnings("ignore")
 
-# Initialize DB on startup
 init_db()
 
-# Frame save interval (seconds)
-FRAME_SAVE_INTERVAL = 300  # 5 minutes
+FRAME_SAVE_INTERVAL = 300
 
 def save_frame(frame):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -32,16 +27,11 @@ def save_frame(frame):
     cv2.imwrite(path, frame)
 
 def main():
-    st.set_page_config(
-        page_title="Visual Memory Lane",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Visual Memory Lane", layout="wide")
 
-    st.title("Visual Memory Lane")
-    st.caption("Context-aware visual AI assistant")
-
-    # Tabs
-    tab1, tab2, tab3 = st.tabs(["Live Feed", "Search", "Log"])
+    st.title("🧠 Visual Memory Lane")
+    st.markdown("A **context-aware visual AI assistant** that observes objects, tracks activity, and provides intelligent suggestions.")
+    st.divider()
 
     # Shared state
     if "running" not in st.session_state:
@@ -50,22 +40,87 @@ def main():
         st.session_state.suggestion = "Waiting for first analysis..."
     if "suggestion_time" not in st.session_state:
         st.session_state.suggestion_time = None
+    if "alert_rules" not in st.session_state:
+        st.session_state.alert_rules = [{"object": "bottle", "minutes": 30}]
+
+    # --- SIDEBAR ---
+    source = 0  # default
+
+    with st.sidebar:
+        st.header("Configuration")
+
+        st.subheader("Camera Source")
+        camera_source = st.radio(
+            "Select input",
+            options=["Laptop Webcam", "DroidCam USB", "IP Camera"]
+        )
+        if camera_source == "Laptop Webcam":
+            source = 0
+        elif camera_source == "DroidCam USB":
+            source = 1
+        else:
+            source = st.text_input(
+                "Enter IP stream URL",
+                "http://192.168.x.x:8080/video"
+            )
+
+        st.divider()
+
+        st.subheader("Absence Alerts")
+        st.caption("Get notified when any object is absent too long.")
+
+        updated_rules = []
+        for i, rule in enumerate(st.session_state.alert_rules):
+            col_obj, col_min, col_del = st.columns([3, 2, 1])
+            with col_obj:
+                obj = st.text_input("Object", value=rule["object"], key=f"obj_{i}")
+            with col_min:
+                mins = st.number_input("Minutes", min_value=1, max_value=480, value=rule["minutes"], key=f"min_{i}")
+            with col_del:
+                st.write("")
+                st.write("")
+                delete = st.button("✕", key=f"del_{i}")
+            if not delete:
+                updated_rules.append({"object": obj, "minutes": mins})
+
+        st.session_state.alert_rules = updated_rules
+
+        if st.button("+ Add Alert Rule"):
+            st.session_state.alert_rules.append({"object": "", "minutes": 30})
+            st.rerun()
+
+        st.divider()
+
+        st.subheader("Intervals")
+        llm_interval = st.slider(
+            "AI suggestion every (seconds)",
+            min_value=30, max_value=300, value=60, step=10
+        )
+        summary_interval = st.slider(
+            "Summary every (seconds)",
+            min_value=60, max_value=600, value=300, step=60
+        )
+
+    # --- TABS ---
+    tab1, tab2, tab3 = st.tabs(["Live Feed", "Search", "Event History"])
 
     # --- TAB 1: Live Feed ---
     with tab1:
-        col1, col2 = st.columns([3, 2])
+        col1, col2 = st.columns([2.5, 1.5], gap="large")
 
         with col1:
-            st.subheader("Camera Feed")
-            frame_placeholder = st.empty()
+            with st.container(border=True):
+                st.subheader("Live Camera Feed")
+                frame_placeholder = st.empty()
 
         with col2:
-            st.subheader("Scene State")
-            scene_placeholder = st.empty()
-            # Category selector
-            st.subheader("User Category")
+            with st.container(border=True):
+                st.subheader("Scene State")
+                scene_placeholder = st.empty()
+
+            st.subheader("Monitoring Mode")
             category = st.selectbox(
-                "Who is being monitored?",
+                "Select user profile",
                 options=[
                     "Student",
                     "Patient (Alzheimer's)",
@@ -74,9 +129,9 @@ def main():
                     "Teacher",
                     "Personal"
                 ],
-                index=5  # Default to Personal
+                index=5
             )
-            
+
             category_descriptions = {
                 "Student": "📚 Educational scaffolding and study habit reminders.",
                 "Patient (Alzheimer's)": "🤍 Gentle, simple, empathetic guidance.",
@@ -85,27 +140,42 @@ def main():
                 "Teacher": "🎓 Pedagogy, lesson flow, classroom management.",
                 "Personal": "😊 Warm, casual, daily life assistance."
             }
-            st.caption(category_descriptions[category])
+            st.info(category_descriptions[category])
 
         st.divider()
-        st.subheader("AI Suggestion")
-        suggestion_placeholder = st.empty()
 
-        start_btn = st.button("Start", type="primary")
-        stop_btn = st.button("Stop")
+        with st.container(border=True):
+            st.subheader("AI Suggestion")
+            suggestion_placeholder = st.empty()
+
+        st.subheader("Controls")
+        control_col1, control_col2 = st.columns(2)
+        with control_col1:
+            start_btn = st.button("▶ Start Monitoring", use_container_width=True, type="primary")
+        with control_col2:
+            stop_btn = st.button("⏹ Stop Monitoring", use_container_width=True)
 
         if start_btn:
             st.session_state.running = True
-
         if stop_btn:
             st.session_state.running = False
 
-        # Main detection loop
         if st.session_state.running:
-            detector = Detector()
+            detector = Detector(source=source)
             tracker = ObjectTracker()
-            engine = ContextEngine(category=category)
-            detector.start()
+            engine = ContextEngine(
+                category=category,
+                alert_rules=st.session_state.alert_rules,
+                llm_interval=llm_interval,
+                summary_interval=summary_interval
+            )
+
+            try:
+                detector.start()
+            except RuntimeError as e:
+                st.error(f"Camera error: {str(e)}. Check your camera source in the sidebar.")
+                st.session_state.running = False
+                st.stop()
 
             last_frame_save = time.time()
 
@@ -116,22 +186,16 @@ def main():
                     st.error("Camera feed lost.")
                     break
 
-                # Update tracker
                 tracker.update(detected_classes)
-
-                # Run context engine
                 suggestion, suggestion_time = engine.run(tracker)
 
-                # Save frame every 5 minutes
                 if time.time() - last_frame_save >= FRAME_SAVE_INTERVAL:
                     save_frame(frame)
                     last_frame_save = time.time()
 
-                # Display annotated frame
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 frame_placeholder.image(frame_rgb, use_column_width=True)
 
-                # Display scene state table
                 scene_state = tracker.get_scene_state()
                 if scene_state:
                     table_data = []
@@ -143,19 +207,23 @@ def main():
                             "Duration (mins)": mins,
                             "First Seen": data["first_seen"]
                         })
-                    scene_placeholder.table(table_data)
+                    scene_placeholder.dataframe(
+                        pd.DataFrame(table_data),
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
                     scene_placeholder.info("No objects detected yet.")
 
-                # Display LLM suggestion
-                # if suggestion:
-                #     st.markdown(f"**Category:** `{category}`")
-                #     suggestion_placeholder.info(
-                #         f"**{suggestion_time}** — {suggestion}"
-                #     )
                 if suggestion:
-                    suggestion_placeholder.info(
-                        f"**Category:** `{category}` \n\n **{suggestion_time}** — {suggestion}"
+                    suggestion_placeholder.success(
+                        f"""
+**Mode:** `{category}`  
+
+🕒 **{suggestion_time}**
+
+{suggestion}
+"""
                     )
 
                 time.sleep(0.05)
@@ -165,53 +233,42 @@ def main():
     # --- TAB 2: Search ---
     with tab2:
         st.subheader("Search Object History")
-        query = st.text_input("Search by object name (e.g. bottle, book, laptop)")
+        query = st.text_input(
+            "Search object history",
+            placeholder="Example: bottle, laptop, book..."
+        )
 
         if query:
             results = search_objects(query)
             if results:
                 st.write(f"Found {len(results)} result(s):")
                 for r in results:
-                    st.markdown(f"""
-                    - **{r[0]}** | First seen: {r[1]} | Last seen: {r[2]} | Duration: {r[3]//60} mins | Status: {r[4]}
-                    """)
+                    st.write(f"**{r[0]}** | ⏱ Duration: {r[3]//60} mins | Status: `{r[4]}`")
+                    st.caption(f"First seen: {r[1]}  •  Last seen: {r[2]}")
             else:
                 st.warning("No results found.")
 
-    # --- TAB 3: Log ---
     # --- TAB 3: Event History ---
     with tab3:
         st.subheader("5-Minute Interval Summaries")
         st.caption("AI-generated summary of what was observed at the desk every 5 minutes.")
-    
+
         summaries = get_summaries(20)
-    
+
         if summaries:
-            # Build table data
-            table_data = []
             for s in summaries:
-                table_data.append({
-                    "Time Interval": f"{s[0]}  →  {s[1]}",
-                    "Summary": s[2]
-                })
-    
-            # Display as styled table
-            for row in table_data:
-                with st.container():
+                with st.container(border=True):
                     col_time, col_summary = st.columns([2, 5])
                     with col_time:
-                        st.markdown(f"**{row['Time Interval']}**")
+                        st.markdown(f"**{s[0]}**")
+                        st.caption(f"→ {s[1]}")
                     with col_summary:
-                        st.write(row["Summary"])
-                    st.divider()
+                        st.write(s[2])
         else:
             st.info("No summaries yet. Summaries are generated every 5 minutes while the feed is running.")
-    
+
         if st.button("Refresh History"):
             st.rerun()
-    
-
-
 
 if __name__ == "__main__":
     main()

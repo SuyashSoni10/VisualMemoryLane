@@ -97,15 +97,20 @@ BOTTLE_ABSENCE_THRESHOLD = 1800
 
 
 class ContextEngine:
-    def __init__(self, category="Personal"):
+    def __init__(self, category="Personal", alert_rules=None,
+             llm_interval=60, summary_interval=300):
         self.client = Groq(api_key=GROQ_API_KEY)
         self.category = category
+        self.alert_rules = alert_rules or []
+        self.llm_interval = llm_interval
+        self.summary_interval = summary_interval
         self.last_llm_call = 0
         self.last_summary_time = time.time()
         self.last_suggestion = "Waiting for first scene analysis..."
         self.last_suggestion_time = None
         self.interval_events = []
         self.interval_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.fired_alerts = {}
 
     def set_category(self, category):
         # Allow category to be changed at runtime from UI
@@ -117,7 +122,7 @@ class ContextEngine:
     def run(self, tracker):
         now = time.time()
 
-        self._check_bottle_alert(tracker)
+        self._check_absence_alerts(tracker)
         self._collect_interval_events(tracker.get_scene_state())
 
         if now - self.last_llm_call >= LLM_INTERVAL:
@@ -187,14 +192,23 @@ class ContextEngine:
         self.interval_events = []
         self.interval_start = interval_end
 
-    def _check_bottle_alert(self, tracker):
+    def _check_absence_alerts(self, tracker):
         state = tracker.get_scene_state()
-        for obj, data in state.items():
-            if "bottle" in obj.lower() and data["status"] == "absent":
-                if data.get("duration_seconds", 0) >= BOTTLE_ABSENCE_THRESHOLD:
-                    message = "You haven't had water in 30 minutes. Time to hydrate!"
-                    self._notify("Hydration Reminder", message)
-                    log_action("hydration_alert", message)
+        for rule in self.alert_rules:
+            target = rule["object"].lower().strip()
+            threshold_seconds = rule["minutes"] * 60
+            if not target:
+                continue
+            for obj, data in state.items():
+                if target in obj.lower() and data["status"] == "absent":
+                    if data.get("duration_seconds", 0) >= threshold_seconds:
+                        if self.fired_alerts.get(obj) != "fired":
+                            message = f"{obj} has been absent for {rule['minutes']} minutes."
+                            self._notify("Absence Alert", message)
+                            log_action("absence_alert", message)
+                            self.fired_alerts[obj] = "fired"
+                    else:
+                        self.fired_alerts[obj] = None
 
     def _notify(self, title, message):
         try:
