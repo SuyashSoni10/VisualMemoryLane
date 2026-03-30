@@ -27,12 +27,44 @@ Streamlit — Dashboard UI
 
 - Real-time object detection via YOLOv8
 - Tracks how long each object is present or absent
-- LLM-powered smart suggestions every 60 seconds
-- Desktop notifications for hydration and activity reminders
-- Searchable object history
-- Saves snapshot frames every 5 minutes
-- Swappable camera source — webcam, phone, IP cam
+- LLM-powered smart suggestions every 60 seconds via Groq LLaMA 3.1
+- Fully configurable absence alerts for any object — no hardcoding
+- User category system — tailored AI reasoning per monitoring context
 - AI-generated 5-minute interval summaries via Event History tab
+- Desktop notifications for absence alerts and AI suggestions
+- Searchable object history via SQLite
+- Saves snapshot frames every 5 minutes
+- Swappable camera source — webcam, Android phone, IP cam
+- Sidebar configuration panel — no code changes needed
+
+---
+
+## User Categories
+
+The system adapts its AI reasoning and language based on who is being monitored. Select a category from the dashboard before starting.
+
+| Category | Focus |
+|---|---|
+| Student | Educational scaffolding, study habits, focus time |
+| Patient (Alzheimer's) | Extreme patience, simple sentences, high empathy |
+| Employee | Professional efficiency, actionable productivity items |
+| Coach | Motivation, performance metrics, tough love encouragement |
+| Teacher | Pedagogy, lesson flow, classroom management |
+| Personal | Warm, informal, conversational daily life assistance |
+
+Each category uses a custom system prompt for both real-time suggestions and 5-minute interval summaries.
+
+---
+
+## Absence Alerts
+
+Absence alerts are fully configurable from the sidebar — no hardcoding required.
+
+- Add any object to monitor (e.g. `bottle`, `person`, `medicine`, `phone`, `laptop`)
+- Set a custom absence threshold in minutes per object
+- Delete or modify rules at any time without restarting
+- Alerts fire once per absence episode and reset when the object returns
+- All triggered alerts are logged to SQLite with timestamp
 
 ---
 
@@ -46,6 +78,7 @@ Every 5 minutes, the system automatically generates an AI-powered summary paragr
 - Notable absences during the interval
 - How many times a previously absent subject returned
 - Any patterns worth flagging
+- Tone and focus adapted to the selected user category
 
 ### Example summary
 
@@ -69,8 +102,42 @@ When deployed in an office environment via a fixed camera mount or existing CCTV
 3. Summaries appear automatically every 5 minutes
 4. Click **Refresh History** to load the latest entries
 
-> **Note:** For testing, set `SUMMARY_INTERVAL = 30` in `context_engine.py` to generate summaries every 30 seconds instead of every 5 minutes.
+> **Note:** For testing, set the summary interval to 30 seconds using the sidebar slider.
 
+---
+
+## Dashboard & Configuration
+
+All configuration is managed from the sidebar — no code changes needed after setup.
+
+### Sidebar options
+
+- **Camera Source** — switch between laptop webcam, DroidCam USB, or IP camera stream
+- **Absence Alert Rules** — add, edit, or delete object-specific absence thresholds
+- **AI Suggestion Interval** — control how often the LLM generates a suggestion (30–300 seconds)
+- **Summary Interval** — control how often interval summaries are generated (60–600 seconds)
+
+### Dashboard tabs
+
+- **Live Feed** — real-time camera feed with YOLO bounding boxes, scene state table, and AI suggestion box
+- **Search** — search object history by name and view all logged events with timestamps
+- **Event History** — 5-minute interval summaries with time range and AI-generated description
+
+---
+
+## Switch Camera Source
+
+From the sidebar, select your camera input. No code changes needed.
+
+For IP Camera, enter the stream URL in this format:
+```
+http://192.168.x.x:8080/video
+```
+
+To use an Android phone as a camera:
+- Install **DroidCam** app for USB connection
+- Install **IP Webcam** app for WiFi stream
+- Both phone and laptop must be on the same WiFi network for IP Webcam
 ---
 
 ## Setup

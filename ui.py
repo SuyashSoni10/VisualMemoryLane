@@ -148,10 +148,14 @@ def main():
                     scene_placeholder.info("No objects detected yet.")
 
                 # Display LLM suggestion
+                # if suggestion:
+                #     st.markdown(f"**Category:** `{category}`")
+                #     suggestion_placeholder.info(
+                #         f"**{suggestion_time}** — {suggestion}"
+                #     )
                 if suggestion:
-                    st.markdown(f"**Category:** `{category}`")
                     suggestion_placeholder.info(
-                        f"**{suggestion_time}** — {suggestion}"
+                        f"**Category:** `{category}` \n\n **{suggestion_time}** — {suggestion}"
                     )
 
                 time.sleep(0.05)

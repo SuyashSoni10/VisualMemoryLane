@@ -6,8 +6,7 @@ import logging
 # 0 = laptop webcam
 # 1 = DroidCam USB (Android)
 # "http://192.168.x.x:8080/video" = IP Webcam stream
-SOURCE = "http://172.25.219.52:8080/video"
-
+SOURCE = 0
 class Detector:
     def __init__(self, source=SOURCE):
         # Load the smallest YOLOv8 model — fast and accurate enough
@@ -18,8 +17,24 @@ class Detector:
 
     def start(self):
         self.cap = cv2.VideoCapture(self.source)
-        if not self.cap.isOpened():
-            raise RuntimeError(f"Could not open camera source: {self.source}")
+        # if not self.cap.isOpened():
+        #     raise RuntimeError(f"Could not open camera source: {self.source}")
+        if st.session_state.running:
+            detector = Detector(source=source)
+            tracker = ObjectTracker()
+            engine = ContextEngine(
+                category=category,
+                alert_rules=st.session_state.alert_rules,
+                llm_interval=llm_interval,
+                summary_interval=summary_interval
+            )
+        
+            try:
+                detector.start()
+            except RuntimeError as e:
+                st.error(f"Camera error: {str(e)}. Check your camera source in the sidebar.")
+                st.session_state.running = False
+                st.stop()
 
     def stop(self):
         if self.cap:
