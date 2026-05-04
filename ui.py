@@ -14,6 +14,8 @@ from tracker import ObjectTracker
 from context_engine import ContextEngine
 from storage import init_db, search_objects, get_recent_logs, get_latest_llm, get_summaries, log_object
 
+from clip_search import embed_frame
+
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 warnings.filterwarnings("ignore")
 
@@ -21,10 +23,14 @@ init_db()
 
 FRAME_SAVE_INTERVAL = 300
 
+
+
 def save_frame(frame):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = os.path.join("frames", f"snapshot_{timestamp}.jpg")
     cv2.imwrite(path, frame)
+    # Immediately embed this frame for CLIP search
+    embed_frame(path)
 
 def main():
     st.set_page_config(page_title="Visual Memory Lane", layout="wide")
@@ -102,7 +108,7 @@ def main():
         )
 
     # --- TABS ---
-    tab1, tab2, tab3 = st.tabs(["Live Feed", "Search", "Event History"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Live Feed", "Search", "Event History", "Visual Search"])
 
     # --- TAB 1: Live Feed ---
     with tab1:
@@ -180,13 +186,13 @@ def main():
             last_frame_save = time.time()
 
             while st.session_state.running:
-                frame, detected_classes, detections = detector.get_frame()
+                frame, detected_classes, detections_raw = detector.get_frame()
 
                 if frame is None:
                     st.error("Camera feed lost.")
                     break
 
-                tracker.update(detected_classes)
+                tracker.update(detected_classes, detections_raw, frame)
                 suggestion, suggestion_time = engine.run(tracker)
 
                 if time.time() - last_frame_save >= FRAME_SAVE_INTERVAL:
@@ -197,21 +203,24 @@ def main():
                 frame_placeholder.image(frame_rgb, use_column_width=True)
 
                 scene_state = tracker.get_scene_state()
+                
                 if scene_state:
                     table_data = []
                     for obj, data in scene_state.items():
                         mins = data["duration_seconds"] // 60
+                        count = data.get("count", 1)
                         table_data.append({
                             "Object": obj,
+                            "Count": count,
                             "Status": data["status"],
                             "Duration (mins)": mins,
                             "First Seen": data["first_seen"]
                         })
-                    scene_placeholder.dataframe(
-                        pd.DataFrame(table_data),
-                        use_container_width=True,
-                        hide_index=True
-                    )
+                        scene_placeholder.dataframe(
+                            pd.DataFrame(table_data),
+                            use_container_width=True,
+                            hide_index=True
+                        )
                 else:
                     scene_placeholder.info("No objects detected yet.")
 
@@ -269,6 +278,45 @@ def main():
 
         if st.button("Refresh History"):
             st.rerun()
+    
+    # --- TAB 4: Visual Search ---
+    with tab4:
+        st.subheader("Visual Search")
+        st.caption("Search your saved snapshots using natural language.")
+    
+        col_search, col_btn = st.columns([4, 1])
+        with col_search:
+            visual_query = st.text_input(
+                "Describe what you're looking for",
+                placeholder="e.g. empty desk, person using laptop, water bottle..."
+            )
+        with col_btn:
+            st.write("")
+            embed_btn = st.button("Index frames", help="Re-index all saved frames")
+    
+        if embed_btn:
+            from clip_search import embed_all_frames
+            with st.spinner("Indexing all frames..."):
+                embed_all_frames()
+            st.success("All frames indexed.")
+    
+        if visual_query:
+            from clip_search import search_frames
+            results = search_frames(visual_query, top_k=5)
+    
+            if results:
+                st.write(f"Top {len(results)} matches:")
+                cols = st.columns(len(results))
+                for i, (frame_path, score) in enumerate(results):
+                    with cols[i]:
+                        try:
+                            st.image(frame_path, use_column_width=True)
+                            st.caption(f"Score: {score:.2f}")
+                            st.caption(frame_path.split("\\")[-1])
+                        except Exception:
+                            st.warning("Frame not found.")
+            else:
+                st.info("No frames indexed yet. Start monitoring to save frames, then click Index frames.")
 
 if __name__ == "__main__":
     main()
