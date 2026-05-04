@@ -1,7 +1,9 @@
-ultralytics
+ultralytics>=8.3.0
 opencv-python
 groq
 streamlit
 plyer
 python-dotenv
 Pillow
+pyttsx3
+deep-sort-realtime

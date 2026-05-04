@@ -13,7 +13,7 @@ class Detector:
     def __init__(self, source=None):
         # Load the smallest YOLOv8 model — fast and accurate enough
         logging.getLogger("ultralytics").setLevel(logging.WARNING)
-        self.model = YOLO("yolov8n.pt", verbose=False)
+        self.model = YOLO("yolo11n.pt", verbose=False)
         self.source = source if source is not None else SOURCE
         self.cap = None
     

@@ -29,7 +29,7 @@ def save_frame(frame):
 def main():
     st.set_page_config(page_title="Visual Memory Lane", layout="wide")
 
-    st.title("🧠 Visual Memory Lane")
+    st.title("Visual Memory Lane")
     st.markdown("A **context-aware visual AI assistant** that observes objects, tracks activity, and provides intelligent suggestions.")
     st.divider()
 
