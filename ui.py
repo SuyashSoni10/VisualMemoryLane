@@ -246,16 +246,24 @@ def main():
             "Search object history",
             placeholder="Example: bottle, laptop, book..."
         )
-
+        
         if query:
             results = search_objects(query)
             if results:
-                st.write(f"Found {len(results)} result(s):")
+                st.write(f"Found {len(results)} result(s) for **{query}**:")
                 for r in results:
-                    st.write(f"**{r[0]}** | ⏱ Duration: {r[3]//60} mins | Status: `{r[4]}`")
-                    st.caption(f"First seen: {r[1]}  •  Last seen: {r[2]}")
+                    with st.container(border=True):
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"**{r[0]}**")
+                            st.caption(f"First seen: {r[1]}  •  Last seen: {r[2]}")
+                        with col2:
+                            duration = r[3] if r[3] is not None else 0
+                            st.metric("Duration", f"{duration // 60} mins")
+                            status_color = "🟢" if r[4] == "present" else "🔴"
+                            st.write(f"{status_color} {r[4]}")
             else:
-                st.warning("No results found.")
+                st.warning(f"No results found for '{query}'")
 
     # --- TAB 3: Event History ---
     with tab3:

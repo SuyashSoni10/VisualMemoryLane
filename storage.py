@@ -1,154 +1,155 @@
-import sqlite3
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from api.models.database import (
+    Base, ObjectLog, LLMLog, IntervalSummary,
+    ActionLog, init_db
+)
 
-DB_PATH = "memory.db"
+load_dotenv()
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS object_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            object_name TEXT,
-            first_seen TEXT,
-            last_seen TEXT,
-            duration_seconds INTEGER,
-            status TEXT
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS llm_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            scene_description TEXT,
-            suggestion TEXT
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS action_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            action_type TEXT,
-            detail TEXT
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS interval_summary (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            interval_start TEXT,
-            interval_end TEXT,
-            summary TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Initialize tables on import
+init_db()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        return db
+    except Exception as e:
+        db.close()
+        raise e
 
 def log_object(object_name, first_seen, last_seen, duration_seconds, status):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO object_log (object_name, first_seen, last_seen, duration_seconds, status)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (object_name, first_seen, last_seen, duration_seconds, status))
-    conn.commit()
-    conn.close()
+    print(f"[STORAGE] Writing to DB: {object_name} | {status}")
+    db = SessionLocal()
+    try:
+        entry = ObjectLog(
+            object_name=object_name,
+            first_seen=first_seen,
+            last_seen=last_seen,
+            duration_seconds=duration_seconds,
+            status=status
+        )
+        db.add(entry)
+        db.commit()
+        print(f"[STORAGE] Committed successfully")
+    except Exception as e:
+        db.rollback()
+        print(f"[STORAGE] log_object error: {e}")
+    finally:
+        db.close()
 
 def log_llm(scene_description, suggestion):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO llm_log (timestamp, scene_description, suggestion)
-        VALUES (?, ?, ?)
-    ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), scene_description, suggestion))
-    conn.commit()
-    conn.close()
-
-def log_action(action_type, detail):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO action_log (timestamp, action_type, detail)
-        VALUES (?, ?, ?)
-    ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), action_type, detail))
-    conn.commit()
-    conn.close()
-
-def search_objects(query):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT object_name, first_seen, last_seen, duration_seconds, status
-        FROM object_log
-        WHERE object_name LIKE ?
-        ORDER BY last_seen DESC
-        LIMIT 20
-    ''', (f"%{query}%",))
-    results = cursor.fetchall()
-    conn.close()
-    return results
-
-def get_recent_logs(limit=20):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT timestamp, action_type, detail
-        FROM action_log
-        ORDER BY timestamp DESC
-        LIMIT ?
-    ''', (limit,))
-    results = cursor.fetchall()
-    conn.close()
-    return results
-
-def get_latest_llm():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT timestamp, suggestion
-        FROM llm_log
-        ORDER BY timestamp DESC
-        LIMIT 1
-    ''')
-    result = cursor.fetchone()
-    conn.close()
-    return result
-# --------------------------------Summanry Table Feature-------------------------------
-def init_summary_table():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS interval_summary (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            interval_start TEXT,
-            interval_end TEXT,
-            summary TEXT
+    db = SessionLocal()
+    try:
+        entry = LLMLog(
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            scene_description=scene_description,
+            suggestion=suggestion
         )
-    ''')
-    conn.commit()
-    conn.close()
+        db.add(entry)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"log_llm error: {e}")
+    finally:
+        db.close()
 
 def log_summary(interval_start, interval_end, summary):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO interval_summary (interval_start, interval_end, summary)
-        VALUES (?, ?, ?)
-    ''', (interval_start, interval_end, summary))
-    conn.commit()
-    conn.close()
+    db = SessionLocal()
+    try:
+        entry = IntervalSummary(
+            interval_start=interval_start,
+            interval_end=interval_end,
+            summary=summary
+        )
+        db.add(entry)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"log_summary error: {e}")
+    finally:
+        db.close()
+
+def log_action(action_type, detail):
+    db = SessionLocal()
+    try:
+        entry = ActionLog(
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            action_type=action_type,
+            detail=detail
+        )
+        db.add(entry)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"log_action error: {e}")
+    finally:
+        db.close()
+
+def search_objects(query):
+    db = SessionLocal()
+    try:
+        results = db.query(ObjectLog).filter(
+            ObjectLog.object_name.ilike(f"%{query}%")
+        ).order_by(ObjectLog.last_seen.desc()).limit(20).all()
+        print(f"[SEARCH] Query: {query} | Results found: {len(results)}")
+        return [
+            (r.object_name, r.first_seen, r.last_seen, r.duration_seconds, r.status)
+            for r in results
+        ]
+    except Exception as e:
+        print(f"[SEARCH] search_objects error: {e}")
+        return []
+    finally:
+        db.close()
+
+def get_recent_logs(limit=20):
+    db = SessionLocal()
+    try:
+        results = db.query(ActionLog).order_by(
+            ActionLog.timestamp.desc()
+        ).limit(limit).all()
+        return [(r.timestamp, r.action_type, r.detail) for r in results]
+    except Exception as e:
+        print(f"get_recent_logs error: {e}")
+        return []
+    finally:
+        db.close()
+
+def get_latest_llm():
+    db = SessionLocal()
+    try:
+        result = db.query(LLMLog).order_by(
+            LLMLog.timestamp.desc()
+        ).first()
+        if result:
+            return (result.timestamp, result.suggestion)
+        return None
+    except Exception as e:
+        print(f"get_latest_llm error: {e}")
+        return None
+    finally:
+        db.close()
 
 def get_summaries(limit=20):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT interval_start, interval_end, summary
-        FROM interval_summary
-        ORDER BY interval_start DESC
-        LIMIT ?
-    ''', (limit,))
-    results = cursor.fetchall()
-    conn.close()
-    return results
-
-#------------------------end of summary Table Feature--------------------------
+    db = SessionLocal()
+    try:
+        results = db.query(IntervalSummary).order_by(
+            IntervalSummary.interval_start.desc()
+        ).limit(limit).all()
+        return [
+            (r.interval_start, r.interval_end, r.summary)
+            for r in results
+        ]
+    except Exception as e:
+        print(f"get_summaries error: {e}")
+        return []
+    finally:
+        db.close()

@@ -83,15 +83,18 @@ class ObjectTracker:
                 seconds_absent = int((now - last).total_seconds())
 
                 if seconds_absent > self.absence_threshold:
-                    if data["status"] == "present":
-                        log_object(
-                            data["class"],
-                            data["first_seen"],
-                            data["last_seen"],
-                            data["duration_seconds"],
-                            "absent"
-                        )
-                    self.tracked[track_id]["status"] = "absent"
+                    if seconds_absent > self.absence_threshold:
+                        if data["status"] == "present":
+                            print(f"[TRACKER] Logging absent object: {data['class']}")
+                            log_object(
+                                data["class"],
+                                data["first_seen"],
+                                data["last_seen"],
+                                data["duration_seconds"],
+                                "absent"
+                            )
+                            print(f"[TRACKER] Logged successfully")
+                        self.tracked[track_id]["status"] = "absent"
 
     def get_scene_state(self):
         # Returns state keyed by class name for compatibility with context engine

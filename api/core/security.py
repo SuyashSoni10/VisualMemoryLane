@@ -13,10 +13,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    truncated = password[:72].encode('utf-8')
+    return pwd_context.hash(truncated)
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    truncated = plain[:72].encode('utf-8')
+    return pwd_context.verify(truncated, hashed)
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
