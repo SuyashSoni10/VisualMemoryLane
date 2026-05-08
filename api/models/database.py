@@ -57,6 +57,12 @@ class ActionLog(Base):
     detail = Column(Text)
     user_id = Column(Integer, nullable=True)
 
+class PushToken(Base):
+    __tablename__ = "push_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 

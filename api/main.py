@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.models.database import init_db
 from api.routes import auth, search
+from api.routes import auth, search, notifications
 
 app = FastAPI(
     title="Visual Memory Lane API",
@@ -26,6 +27,7 @@ def startup():
 # Register routes
 app.include_router(auth.router)
 app.include_router(search.router)
+app.include_router(notifications.router)
 
 @app.get("/")
 def root():

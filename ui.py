@@ -69,7 +69,11 @@ def main():
                 "Enter IP stream URL",
                 "http://192.168.x.x:8080/video"
             )
-
+        
+        st.divider()
+        st.subheader("Voice Alerts")
+        voice_enabled = st.toggle("Enable Voice alerts", value = False)
+        
         st.divider()
 
         st.subheader("Absence Alerts")
@@ -173,7 +177,8 @@ def main():
                 category=category,
                 alert_rules=st.session_state.alert_rules,
                 llm_interval=llm_interval,
-                summary_interval=summary_interval
+                summary_interval=summary_interval,
+                voice_enabled=voice_enabled
             )
 
             try:

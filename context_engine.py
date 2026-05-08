@@ -6,9 +6,23 @@ from groq import Groq
 from storage import log_llm, log_action, log_summary
 from plyer import notification
 import logging
-
+from voice import speak
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 load_dotenv()
+
+
+import httpx
+
+def push_notify(title: str, body: str):
+    try:
+        import httpx
+        httpx.post(
+            "http://localhost:8000/notifications/send",
+            json={"title": title, "body": body},
+            timeout=5
+        )
+    except Exception as e:
+        print(f"[PUSH] Error: {e}")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
@@ -98,7 +112,7 @@ BOTTLE_ABSENCE_THRESHOLD = 1800
 
 class ContextEngine:
     def __init__(self, category="Personal", alert_rules=None,
-             llm_interval=60, summary_interval=300):
+             llm_interval=60, summary_interval=300, voice_enabled = True):
         self.client = Groq(api_key=GROQ_API_KEY)
         self.category = category
         self.alert_rules = alert_rules or []
@@ -111,6 +125,7 @@ class ContextEngine:
         self.interval_events = []
         self.interval_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.fired_alerts = {}
+        self.voice_enabled = voice_enabled
 
     def set_category(self, category):
         # Allow category to be changed at runtime from UI
@@ -125,14 +140,26 @@ class ContextEngine:
         self._check_absence_alerts(tracker)
         self._collect_interval_events(tracker.get_scene_state())
 
-        if now - self.last_llm_call >= LLM_INTERVAL:
+        # if now - self.last_llm_call >= LLM_INTERVAL:
+        #     scene_description = tracker.get_scene_description()
+        #     suggestion = self._get_llm_suggestion(scene_description)
+        #     self.last_suggestion = suggestion
+        #     self.last_suggestion_time = datetime.now().strftime("%H:%M:%S")
+        #     log_llm(scene_description, suggestion)
+        #     self._notify("Desk Assistant", suggestion)
+        #     self.last_llm_call = now
+        if now - self.last_llm_call >= self.llm_interval:
             scene_description = tracker.get_scene_description()
             suggestion = self._get_llm_suggestion(scene_description)
             self.last_suggestion = suggestion
             self.last_suggestion_time = datetime.now().strftime("%H:%M:%S")
             log_llm(scene_description, suggestion)
             self._notify("Desk Assistant", suggestion)
+            if self.voice_enabled:
+                speak(suggestion)
             self.last_llm_call = now
+
+        push_notify("Desk Assistant", suggestion)
 
         if now - self.last_summary_time >= SUMMARY_INTERVAL:
             self._generate_interval_summary(tracker)
@@ -202,11 +229,19 @@ class ContextEngine:
             for obj, data in state.items():
                 if target in obj.lower() and data["status"] == "absent":
                     if data.get("duration_seconds", 0) >= threshold_seconds:
-                        if self.fired_alerts.get(obj) != "fired":
-                            message = f"{obj} has been absent for {rule['minutes']} minutes."
-                            self._notify("Absence Alert", message)
-                            log_action("absence_alert", message)
-                            self.fired_alerts[obj] = "fired"
+                            # if self.fired_alerts.get(obj) != "fired":
+                            # message = f"{obj} has been absent for {rule['minutes']} minutes."
+                            # self._notify("Absence Alert", message)
+                            # log_action("absence_alert", message)
+                            # self.fired_alerts[obj] = "fired"
+                            if self.fired_alerts.get(obj) != "fired":
+                                message = f"{obj} has been absent for {rule['minutes']} minutes."
+                                self._notify("Absence Alert", message)
+                                log_action("absence_alert", message)
+                                push_notify("Absence Alert", message)
+                                if self.voice_enabled:
+                                    speak(message)
+                                self.fired_alerts[obj] = "fired"
                     else:
                         self.fired_alerts[obj] = None
 
