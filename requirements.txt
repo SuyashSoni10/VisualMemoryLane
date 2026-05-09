@@ -7,3 +7,17 @@ python-dotenv
 Pillow
 pyttsx3
 deep-sort-realtime
+sqlalchemy
+psycopg2-binary
+fastapi
+uvicorn
+python-jose
+passlib
+bcrypt==4.0.1
+python-multipart
+httpx
+requests
+pandas
+numpy
+ftfy
+regex
