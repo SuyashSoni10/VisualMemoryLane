@@ -20,7 +20,7 @@ class ObjectTracker:
         # Stores last known class per track ID
         self.id_to_class = {}
 
-    def update(self, detected_classes, detections_raw, frame):
+    def update(self, detected_classes, detections_raw, frame, camera_id="cam_0"):
         """
         detected_classes: list of class name strings (for compatibility)
         detections_raw: list of dicts with keys: class, confidence, bbox [x1,y1,x2,y2]

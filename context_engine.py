@@ -112,7 +112,7 @@ BOTTLE_ABSENCE_THRESHOLD = 1800
 
 class ContextEngine:
     def __init__(self, category="Personal", alert_rules=None,
-             llm_interval=60, summary_interval=300, voice_enabled = True):
+             llm_interval=60, summary_interval=300, voice_enabled = True, camera_id="cam_0"):
         self.client = Groq(api_key=GROQ_API_KEY)
         self.category = category
         self.alert_rules = alert_rules or []
@@ -126,6 +126,7 @@ class ContextEngine:
         self.interval_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.fired_alerts = {}
         self.voice_enabled = voice_enabled
+        self.camera_id = camera_id
 
     def set_category(self, category):
         # Allow category to be changed at runtime from UI
@@ -159,7 +160,7 @@ class ContextEngine:
                 speak(suggestion)
             self.last_llm_call = now
 
-        push_notify("Desk Assistant", suggestion)
+            push_notify("Desk Assistant", suggestion)
 
         if now - self.last_summary_time >= SUMMARY_INTERVAL:
             self._generate_interval_summary(tracker)
@@ -215,7 +216,7 @@ class ContextEngine:
         except Exception as e:
             summary = f"Summary generation failed: {str(e)}"
 
-        log_summary(self.interval_start, interval_end, summary)
+        log_summary(self.interval_start, interval_end, summary, camera_id=self.camera_id)
         self.interval_events = []
         self.interval_start = interval_end
 

@@ -31,6 +31,7 @@ class ObjectLog(Base):
     last_seen = Column(String)
     duration_seconds = Column(Integer)
     status = Column(String)
+    camera_id = Column(String, default="cam_0")
     user_id = Column(Integer, nullable=True)
 
 class LLMLog(Base):
@@ -47,6 +48,7 @@ class IntervalSummary(Base):
     interval_start = Column(String)
     interval_end = Column(String)
     summary = Column(Text)
+    camera_id = Column(String, default="cam_0")
     user_id = Column(Integer, nullable=True)
 
 class ActionLog(Base):

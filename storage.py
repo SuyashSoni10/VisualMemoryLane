@@ -25,8 +25,7 @@ def get_db():
         db.close()
         raise e
 
-def log_object(object_name, first_seen, last_seen, duration_seconds, status):
-    print(f"[STORAGE] Writing to DB: {object_name} | {status}")
+def log_object(object_name, first_seen, last_seen, duration_seconds, status, camera_id="cam_0"):
     db = SessionLocal()
     try:
         entry = ObjectLog(
@@ -34,14 +33,14 @@ def log_object(object_name, first_seen, last_seen, duration_seconds, status):
             first_seen=first_seen,
             last_seen=last_seen,
             duration_seconds=duration_seconds,
-            status=status
+            status=status,
+            camera_id=camera_id
         )
         db.add(entry)
         db.commit()
-        print(f"[STORAGE] Committed successfully")
     except Exception as e:
         db.rollback()
-        print(f"[STORAGE] log_object error: {e}")
+        print(f"log_object error: {e}")
     finally:
         db.close()
 
@@ -61,13 +60,14 @@ def log_llm(scene_description, suggestion):
     finally:
         db.close()
 
-def log_summary(interval_start, interval_end, summary):
+def log_summary(interval_start, interval_end, summary, camera_id="cam_0"):
     db = SessionLocal()
     try:
         entry = IntervalSummary(
             interval_start=interval_start,
             interval_end=interval_end,
-            summary=summary
+            summary=summary,
+            camera_id=camera_id
         )
         db.add(entry)
         db.commit()
@@ -93,19 +93,21 @@ def log_action(action_type, detail):
     finally:
         db.close()
 
-def search_objects(query):
+def search_objects(query, camera_id=None):
     db = SessionLocal()
     try:
-        results = db.query(ObjectLog).filter(
+        q = db.query(ObjectLog).filter(
             ObjectLog.object_name.ilike(f"%{query}%")
-        ).order_by(ObjectLog.last_seen.desc()).limit(20).all()
-        print(f"[SEARCH] Query: {query} | Results found: {len(results)}")
+        )
+        if camera_id:
+            q = q.filter(ObjectLog.camera_id == camera_id)
+        results = q.order_by(ObjectLog.last_seen.desc()).limit(20).all()
         return [
-            (r.object_name, r.first_seen, r.last_seen, r.duration_seconds, r.status)
+            (r.object_name, r.first_seen, r.last_seen, r.duration_seconds, r.status, r.camera_id)
             for r in results
         ]
     except Exception as e:
-        print(f"[SEARCH] search_objects error: {e}")
+        print(f"search_objects error: {e}")
         return []
     finally:
         db.close()

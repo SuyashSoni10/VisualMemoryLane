@@ -10,11 +10,12 @@ import logging
 #SOURCE = "http://172.25.235.218:8080/video"
 SOURCE = 0
 class Detector:
-    def __init__(self, source=None):
-        # Load the smallest YOLOv8 model — fast and accurate enough
+    def __init__(self, source=None, custom_classes=None):
+        #Loading the YOLO11 model
         logging.getLogger("ultralytics").setLevel(logging.WARNING)
         self.model = YOLO("yolo11n.pt", verbose=False)
         self.source = source if source is not None else SOURCE
+        self.custom_classes = custom_classes  # stored but not used with YOLO11
         self.cap = None
     
     def start(self):

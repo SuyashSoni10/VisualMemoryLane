@@ -13,7 +13,7 @@ from detector import Detector
 from tracker import ObjectTracker
 from context_engine import ContextEngine
 from storage import init_db, search_objects, get_recent_logs, get_latest_llm, get_summaries, log_object
-
+from camera_manager import CameraManager
 from clip_search import embed_frame
 
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
@@ -48,27 +48,68 @@ def main():
         st.session_state.suggestion_time = None
     if "alert_rules" not in st.session_state:
         st.session_state.alert_rules = [{"object": "bottle", "minutes": 30}]
+    if "camera_configs" not in st.session_state:
+        st.session_state.camera_configs = [
+            {"id": "cam_0", "source": "0", "label": "Webcam"}
+        ]
+    if "camera_manager" not in st.session_state:
+        st.session_state.camera_manager = None
 
     # --- SIDEBAR ---
     source = 0  # default
 
     with st.sidebar:
         st.header("Configuration")
+        #camera configurations setting block
+        st.subheader("Camera Sources")
+        st.caption("Add up to 4 camera sources.")
 
-        st.subheader("Camera Source")
-        camera_source = st.radio(
-            "Select input",
-            options=["Laptop Webcam", "DroidCam USB", "IP Camera"]
+        updated_cameras = []
+        for i, cam in enumerate(st.session_state.camera_configs):
+            with st.expander(f"📷 {cam['label']}", expanded=i == 0):
+                label = st.text_input("Label", value=cam["label"], key=f"cam_label_{i}")
+                source_type = st.radio(
+                    "Source type",
+                    ["Webcam", "DroidCam USB", "IP Camera"],
+                    key=f"cam_source_type_{i}"
+                )
+                if source_type == "Webcam":
+                    source = "0"
+                elif source_type == "DroidCam USB":
+                    source = "1"
+                else:
+                    source = st.text_input(
+                        "IP stream URL",
+                        value="http://192.168.x.x:8080/video",
+                        key=f"cam_ip_{i}"
+                    )
+                delete_cam = st.button("Remove", key=f"del_cam_{i}")
+                if not delete_cam:
+                    updated_cameras.append({
+                        "id": f"cam_{i}",
+                        "source": source,
+                        "label": label
+                    })
+
+        st.session_state.camera_configs = updated_cameras
+
+        if len(st.session_state.camera_configs) < 4:
+            if st.button("+ Add Camera"):
+                st.session_state.camera_configs.append({
+                    "id": f"cam_{len(st.session_state.camera_configs)}",
+                    "source": "0",
+                    "label": f"Camera {len(st.session_state.camera_configs) + 1}"
+                })
+                st.rerun()
+        st.divider()
+        st.subheader("Detection Classes")
+        st.caption("What objects to detect. Separate with commas.")
+        classes_input = st.text_area(
+            "Objects",
+            value="person, bottle, laptop, phone, cup, book, chair, keyboard, mouse",
+            height=100
         )
-        if camera_source == "Laptop Webcam":
-            source = 0
-        elif camera_source == "DroidCam USB":
-            source = 1
-        else:
-            source = st.text_input(
-                "Enter IP stream URL",
-                "http://192.168.x.x:8080/video"
-            )
+        custom_classes = [c.strip() for c in classes_input.split(",") if c.strip()]
         
         st.divider()
         st.subheader("Voice Alerts")
@@ -112,7 +153,7 @@ def main():
         )
 
     # --- TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["Live Feed", "Search", "Event History", "Visual Search"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Live Feed", "Search", "Event History", "Chat"])
 
     # --- TAB 1: Live Feed ---
     with tab1:
@@ -170,79 +211,94 @@ def main():
         if stop_btn:
             st.session_state.running = False
 
+        # Detection Loop 
         if st.session_state.running:
-            detector = Detector(source=source)
-            tracker = ObjectTracker()
-            engine = ContextEngine(
-                category=category,
-                alert_rules=st.session_state.alert_rules,
-                llm_interval=llm_interval,
-                summary_interval=summary_interval,
-                voice_enabled=voice_enabled
-            )
+            
 
-            try:
-                detector.start()
-            except RuntimeError as e:
-                st.error(f"Camera error: {str(e)}. Check your camera source in the sidebar.")
-                st.session_state.running = False
-                st.stop()
+            if st.session_state.camera_manager is None:
+                st.session_state.camera_manager = CameraManager()
 
-            last_frame_save = time.time()
+            manager = st.session_state.camera_manager
 
+            for cam_config in st.session_state.camera_configs:
+                src = int(cam_config["source"]) if cam_config["source"].isdigit() else cam_config["source"]
+                manager.add_camera(
+                    camera_id=cam_config["id"],
+                    source=src,
+                    custom_classes=custom_classes,
+                    category=category,
+                    alert_rules=st.session_state.alert_rules,
+                    llm_interval=llm_interval,
+                    summary_interval=summary_interval,
+                    voice_enabled=voice_enabled
+                )
+
+            # Create placeholders OUTSIDE the loop
+            stream_placeholders = {}
+            for cam_config in st.session_state.camera_configs:
+                cam_id = cam_config["id"]
+                st.markdown(f"**📷 {cam_config['label']}**")
+                col_feed, col_scene = st.columns([2, 1])
+                with col_feed:
+                    frame_ph = st.empty()
+                with col_scene:
+                    scene_ph = st.empty()
+                suggestion_ph = st.empty()
+                stream_placeholders[cam_id] = {
+                    "frame": frame_ph,
+                    "scene": scene_ph,
+                    "suggestion": suggestion_ph
+                }
+
+            # Now loop only updates placeholders
             while st.session_state.running:
-                frame, detected_classes, detections_raw = detector.get_frame()
+                streams = manager.get_all_streams()
 
-                if frame is None:
-                    st.error("Camera feed lost.")
-                    break
+                for cam_id, stream in streams.items():
+                    if cam_id not in stream_placeholders:
+                        continue
+                    
+                    ph = stream_placeholders[cam_id]
 
-                tracker.update(detected_classes, detections_raw, frame)
-                suggestion, suggestion_time = engine.run(tracker)
+                    if stream.error:
+                        ph["frame"].error(f"Camera error: {stream.error}")
+                        continue
+                    
+                    frame = stream.get_frame()
+                    if frame is not None:
+                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        ph["frame"].image(frame_rgb, use_column_width=True)
 
-                if time.time() - last_frame_save >= FRAME_SAVE_INTERVAL:
-                    save_frame(frame)
-                    last_frame_save = time.time()
-
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame_placeholder.image(frame_rgb, use_column_width=True)
-
-                scene_state = tracker.get_scene_state()
-                
-                if scene_state:
-                    table_data = []
-                    for obj, data in scene_state.items():
-                        mins = data["duration_seconds"] // 60
-                        count = data.get("count", 1)
-                        table_data.append({
-                            "Object": obj,
-                            "Count": count,
-                            "Status": data["status"],
-                            "Duration (mins)": mins,
-                            "First Seen": data["first_seen"]
-                        })
-                        scene_placeholder.dataframe(
+                    scene = stream.get_scene()
+                    if scene:
+                        table_data = []
+                        for obj, data in scene.items():
+                            mins = data["duration_seconds"] // 60
+                            count = data.get("count", 1)
+                            table_data.append({
+                                "Object": obj,
+                                "Count": count,
+                                "Status": data["status"],
+                                "Mins": mins
+                            })
+                        ph["scene"].dataframe(
                             pd.DataFrame(table_data),
                             use_container_width=True,
                             hide_index=True
                         )
-                else:
-                    scene_placeholder.info("No objects detected yet.")
 
-                if suggestion:
-                    suggestion_placeholder.success(
-                        f"""
-**Mode:** `{category}`  
-
-🕒 **{suggestion_time}**
-
-{suggestion}
-"""
-                    )
+                    suggestion, s_time = stream.get_suggestion()
+                    if suggestion:
+                        ph["suggestion"].success(
+                            f"**Mode:** `{category}`\n\n🕒 **{s_time}**\n\n{suggestion}"
+                        )
 
                 time.sleep(0.05)
 
-            detector.stop()
+        if stop_btn:
+            if st.session_state.camera_manager:
+                st.session_state.camera_manager.stop_all()
+                st.session_state.camera_manager = None
 
     # --- TAB 2: Search ---
     with tab2:
@@ -292,44 +348,61 @@ def main():
         if st.button("Refresh History"):
             st.rerun()
     
-    # --- TAB 4: Visual Search ---
+    # --- TAB 4: Chat ---
     with tab4:
-        st.subheader("Visual Search")
-        st.caption("Search your saved snapshots using natural language.")
-    
-        col_search, col_btn = st.columns([4, 1])
-        with col_search:
-            visual_query = st.text_input(
-                "Describe what you're looking for",
-                placeholder="e.g. empty desk, person using laptop, water bottle..."
-            )
-        with col_btn:
-            st.write("")
-            embed_btn = st.button("Index frames", help="Re-index all saved frames")
-    
-        if embed_btn:
-            from clip_search import embed_all_frames
-            with st.spinner("Indexing all frames..."):
-                embed_all_frames()
-            st.success("All frames indexed.")
-    
-        if visual_query:
-            from clip_search import search_frames
-            results = search_frames(visual_query, top_k=5)
-    
-            if results:
-                st.write(f"Top {len(results)} matches:")
-                cols = st.columns(len(results))
-                for i, (frame_path, score) in enumerate(results):
-                    with cols[i]:
-                        try:
-                            st.image(frame_path, use_column_width=True)
-                            st.caption(f"Score: {score:.2f}")
-                            st.caption(frame_path.split("\\")[-1])
-                        except Exception:
-                            st.warning("Frame not found.")
-            else:
-                st.info("No frames indexed yet. Start monitoring to save frames, then click Index frames.")
+        st.subheader("💬 Ask your workspace assistant")
+        st.caption("Ask anything about what has been observed in your workspace.")
 
+        # Initialize chat history
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
+
+        # Display chat history
+        for msg in st.session_state.chat_history:
+            if msg["role"] == "user":
+                with st.chat_message("user"):
+                    st.write(msg["content"])
+            else:
+                with st.chat_message("assistant"):
+                    st.write(msg["content"])
+
+        # Chat input
+        user_input = st.chat_input("Ask something... e.g. 'What was on my desk this morning?'")
+
+        if user_input:
+            # Add user message to history
+            st.session_state.chat_history.append({
+                "role": "user",
+                "content": user_input
+            })
+
+            # Call FastAPI chat endpoint
+            import requests
+            try:
+                res = requests.post(
+                    "http://localhost:8000/chat/message",
+                    json={
+                        "message": user_input,
+                        "category": category if "category" in dir() else "Personal"
+                    },
+                    timeout=15
+                )
+                response = res.json().get("response", "No response received.")
+            except Exception as e:
+                response = f"Could not reach assistant: {str(e)}"
+
+            # Add assistant response to history
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": response
+            })
+
+            st.rerun()
+
+        # Clear chat button
+        if st.session_state.chat_history:
+            if st.button("Clear chat"):
+                st.session_state.chat_history = []
+                st.rerun()
 if __name__ == "__main__":
     main()
