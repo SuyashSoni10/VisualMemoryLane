@@ -1,47 +1,66 @@
 # Visual Memory Lane
 
-A camera-agnostic, context-aware visual AI assistant that passively observes your environment, logs objects over time, reasons about the scene using LLM, and triggers smart reminders.
+> A camera-agnostic, context-aware visual AI assistant that passively observes your environment, tracks objects over time, reasons about scenes using LLM, and assists users through a conversational interface.
+
+---
+
+## What is this?
+
+Visual Memory Lane is a multi-camera AI system that watches your workspace and acts as a second pair of eyes. It detects objects, tracks how long they've been present or absent, generates intelligent suggestions, and answers natural language questions about what it has observed.
+
+Originally conceived as an assistive tool for Alzheimer's patients, students, engineers, and workplace monitoring — it adapts its intelligence based on who is being monitored.
 
 ---
 
 ## Architecture
+
 ```
-Camera Input (Webcam / Phone / IP Cam)
+Camera Inputs (Webcam / Phone / IP Cam / Smart Glasses)
         ↓
-YOLOv8 — Object Detection
+YOLO11 — Real-time Object Detection
         ↓
-Temporal Tracker — Object Persistence
+DeepSORT — Per-ID Object Tracking
         ↓
-Groq LLaMA 3.1 — Scene Reasoning
+Temporal Tracker — Object Persistence Over Time
         ↓
-Action Layer — Notifications + Logging
+Groq LLaMA 3.1 — Scene Reasoning + Conversational AI
         ↓
-SQLite — Storage + Search
+Action Layer — Voice Alerts + Desktop Notifications + Logging
         ↓
-Streamlit — Dashboard UI
+PostgreSQL — Persistent Storage + Search
+        ↓
+FastAPI Backend — REST API for all services
+        ↓
+Streamlit Dashboard + React Native Mobile App
 ```
 
 ---
 
 ## Features
 
-- Real-time object detection via YOLOv8
-- Tracks how long each object is present or absent
+- Real-time object detection via YOLO11
+- Per-ID object tracking via DeepSORT — distinguishes multiple instances of the same class
+- Multi-camera support — up to 4 simultaneous camera feeds
 - LLM-powered smart suggestions every 60 seconds via Groq LLaMA 3.1
-- Fully configurable absence alerts for any object — no hardcoding
-- User category system — tailored AI reasoning per monitoring context
-- AI-generated 5-minute interval summaries via Event History tab
-- Desktop notifications for absence alerts and AI suggestions
-- Searchable object history via SQLite
-- Saves snapshot frames every 5 minutes
-- Swappable camera source — webcam, Android phone, IP cam
-- Sidebar configuration panel — no code changes needed
+- Conversational chat interface — ask questions about your workspace in natural language
+- AI-generated 5-minute interval summaries stored in PostgreSQL
+- User category system — 6 profiles with tailored AI reasoning
+- Fully configurable absence alerts for any object
+- Voice alerts via pyttsx3
+- Desktop notifications via plyer
+- CLIP-based visual search — search saved frames using natural language
+- Searchable object history via PostgreSQL
+- Snapshot frames saved every 5 minutes
+- JWT authentication — multi-user support
+- React Native mobile app — login, search, summaries
+- Docker support for deployment
+- Camera-agnostic — webcam, Android phone, IP camera, smart glasses ready
 
 ---
 
 ## User Categories
 
-The system adapts its AI reasoning and language based on who is being monitored. Select a category from the dashboard before starting.
+The system adapts its AI reasoning and language based on who is being monitored.
 
 | Category | Focus |
 |---|---|
@@ -52,25 +71,11 @@ The system adapts its AI reasoning and language based on who is being monitored.
 | Teacher | Pedagogy, lesson flow, classroom management |
 | Personal | Warm, informal, conversational daily life assistance |
 
-Each category uses a custom system prompt for both real-time suggestions and 5-minute interval summaries.
-
----
-
-## Absence Alerts
-
-Absence alerts are fully configurable from the sidebar — no hardcoding required.
-
-- Add any object to monitor (e.g. `bottle`, `person`, `medicine`, `phone`, `laptop`)
-- Set a custom absence threshold in minutes per object
-- Delete or modify rules at any time without restarting
-- Alerts fire once per absence episode and reset when the object returns
-- All triggered alerts are logged to SQLite with timestamp
-
 ---
 
 ## Event History & Interval Summaries
 
-Every 5 minutes, the system automatically generates an AI-powered summary paragraph of everything observed at the desk during that interval. These summaries are stored in the SQLite database and accessible via the **Event History** tab in the dashboard.
+Every 5 minutes the system generates an AI-powered summary of everything observed. Summaries are stored in PostgreSQL and accessible via the Event History tab.
 
 ### What the summary captures
 
@@ -86,7 +91,7 @@ Every 5 minutes, the system automatically generates an AI-powered summary paragr
 
 ### Workplace monitoring use case
 
-When deployed in an office environment via a fixed camera mount or existing CCTV, the system can passively track desk occupancy and generate per-interval reports. Managers can review the Event History tab to understand:
+When deployed in an office via fixed camera mounts or existing CCTV, the system tracks desk occupancy and generates per-interval reports.
 
 | What | How the system tracks it |
 |---|---|
@@ -95,117 +100,270 @@ When deployed in an office environment via a fixed camera mount or existing CCTV
 | Focus time | Continuous presence at desk |
 | Return frequency | How often absent subjects returned |
 
-### Accessing summaries
+---
 
-1. Run the app and click **Start**
-2. Navigate to the **Event History** tab
-3. Summaries appear automatically every 5 minutes
-4. Click **Refresh History** to load the latest entries
+## Conversational Interface
 
-> **Note:** For testing, set the summary interval to 30 seconds using the sidebar slider.
+Ask natural language questions about your workspace directly in the Chat tab.
+
+**Example queries:**
+- "What objects have been on my desk today?"
+- "Was anyone at the desk this morning?"
+- "What was the last AI suggestion?"
+- "How long has my laptop been present?"
+
+The assistant reasons over your full PostgreSQL history to answer accurately.
 
 ---
 
-## Dashboard & Configuration
+## Absence Alerts
 
-All configuration is managed from the sidebar — no code changes needed after setup.
+Fully configurable from the sidebar — no code changes needed.
 
-### Sidebar options
-
-- **Camera Source** — switch between laptop webcam, DroidCam USB, or IP camera stream
-- **Absence Alert Rules** — add, edit, or delete object-specific absence thresholds
-- **AI Suggestion Interval** — control how often the LLM generates a suggestion (30–300 seconds)
-- **Summary Interval** — control how often interval summaries are generated (60–600 seconds)
-
-### Dashboard tabs
-
-- **Live Feed** — real-time camera feed with YOLO bounding boxes, scene state table, and AI suggestion box
-- **Search** — search object history by name and view all logged events with timestamps
-- **Event History** — 5-minute interval summaries with time range and AI-generated description
+- Add any object to monitor: `bottle`, `person`, `medicine`, `phone`, `laptop`
+- Set a custom absence threshold in minutes per object
+- Alerts fire once per absence episode and reset when the object returns
+- Desktop notification + voice alert + logged to PostgreSQL
 
 ---
 
-## Switch Camera Source
+## Multi-Camera Support
 
-From the sidebar, select your camera input. No code changes needed.
+Run up to 4 simultaneous camera feeds from the sidebar. Each camera runs in its own thread with independent detection, tracking, and context engine. All feeds write to shared PostgreSQL storage tagged by `camera_id`.
 
-For IP Camera, enter the stream URL in this format:
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Detection | YOLO11 (Ultralytics) |
+| Tracking | DeepSORT |
+| Visual search | CLIP (OpenAI) |
+| LLM reasoning | Groq LLaMA 3.1 8B Instant |
+| Backend API | FastAPI + Uvicorn |
+| Database | PostgreSQL via SQLAlchemy |
+| Auth | JWT via python-jose + passlib |
+| Desktop UI | Streamlit |
+| Mobile app | React Native (Expo) |
+| Voice | pyttsx3 |
+| Notifications | plyer |
+| Deployment | Docker + docker-compose |
+| Language | Python 3.10+ / JavaScript |
+
+---
+
+## Project Structure
+
 ```
-http://192.168.x.x:8080/video
+visual-memory-lane/
+├── main.py                  # Entry point
+├── detector.py              # YOLO11 camera + detection
+├── tracker.py               # DeepSORT object tracking
+├── context_engine.py        # Groq LLM reasoning layer
+├── camera_manager.py        # Multi-camera thread manager
+├── clip_search.py           # CLIP visual search
+├── voice.py                 # pyttsx3 voice alerts
+├── storage.py               # PostgreSQL logging + search
+├── ui.py                    # Streamlit dashboard
+├── api/
+│   ├── main.py              # FastAPI app
+│   ├── routes/
+│   │   ├── auth.py          # JWT register + login
+│   │   ├── search.py        # Search endpoints
+│   │   ├── chat.py          # Conversational AI endpoint
+│   │   └── notifications.py # Push notification endpoints
+│   ├── models/
+│   │   ├── database.py      # SQLAlchemy models
+│   │   └── schemas.py       # Pydantic schemas
+│   └── core/
+│       └── security.py      # JWT + bcrypt security
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── .env                     # API keys (never commit this)
+├── .gitignore
+└── frames/                  # Auto-saved snapshots
+
+vml-mobile/                  # React Native mobile app
+├── App.js
+├── screens/
+│   ├── LoginScreen.js
+│   ├── HomeScreen.js
+│   ├── SearchScreen.js
+│   └── SummariesScreen.js
+└── services/
+    ├── api.js
+    └── notifications.js
 ```
 
-To use an Android phone as a camera:
-- Install **DroidCam** app for USB connection
-- Install **IP Webcam** app for WiFi stream
-- Both phone and laptop must be on the same WiFi network for IP Webcam
 ---
 
 ## Setup
 
+### Prerequisites
+
+- Python 3.10+
+- PostgreSQL 14+
+- Node.js 18+ (for mobile app)
+- Expo Go app on your phone
+
 ### 1. Clone the repo
+
 ```bash
 git clone https://github.com/yourusername/visual-memory-lane.git
 cd visual-memory-lane
 ```
 
 ### 2. Create virtual environment
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
 ### 3. Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Set up environment variables
+### 4. Set up PostgreSQL
+
+```sql
+CREATE DATABASE visual_memory_lane;
+CREATE USER vml_user WITH PASSWORD 'yourpassword';
+GRANT ALL PRIVILEGES ON DATABASE visual_memory_lane TO vml_user;
+GRANT ALL ON SCHEMA public TO vml_user;
+```
+
+### 5. Configure environment variables
 
 Create a `.env` file in the root folder:
+
 ```
 GROQ_API_KEY=your_groq_api_key_here
+DATABASE_URL=postgresql://vml_user:yourpassword@localhost:5432/visual_memory_lane
+SECRET_KEY=your_secret_key_here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
+
 Get your free Groq API key at https://console.groq.com
 
-### 5. Run the app
+Generate a secret key:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 6. Run the backend API
+
+```bash
+uvicorn api.main:app --reload --port 8000 --host 0.0.0.0
+```
+
+### 7. Run the desktop app
+
 ```bash
 streamlit run main.py
+```
+
+### 8. Run with Docker
+
+```bash
+docker-compose up --build
 ```
 
 ---
 
 ## Switch Camera Source
 
-Open `detector.py` and change the `SOURCE` variable:
-```python
-SOURCE = 0                                 # Laptop webcam
-SOURCE = 1                                 # DroidCam USB (Android)
-SOURCE = "http://192.168.x.x:8080/video"  # IP Webcam stream
+From the sidebar, add camera sources dynamically. Supported inputs:
+
 ```
+Webcam          → source: 0
+DroidCam USB    → source: 1
+IP Webcam       → http://192.168.x.x:8080/video
+```
+
+For Android phone as camera:
+- USB: Install DroidCam app
+- WiFi: Install IP Webcam app (both devices on same network)
 
 ---
 
-## Project Structure
+## Mobile App Setup
+
+```bash
+cd vml-mobile
+npm install
 ```
-visual-memory-lane/
-├── main.py            # Entry point
-├── detector.py        # YOLOv8 camera + detection
-├── tracker.py         # Object persistence tracking
-├── context_engine.py  # Groq LLM reasoning layer
-├── storage.py         # SQLite logging + search
-├── ui.py              # Streamlit dashboard
-├── requirements.txt
-├── README.md
-├── .env               # API keys (never commit this)
-└── frames/            # Auto-saved snapshots
+
+Update `BASE_URL` in `services/api.js` with your laptop's IP:
+```javascript
+const BASE_URL = 'http://YOUR_LAPTOP_IP:8000';
 ```
+
+Run:
+```bash
+npx expo start
+```
+
+Scan QR code with Expo Go on your phone.
+
+---
+
+## API Documentation
+
+Once the backend is running, visit:
+```
+http://localhost:8000/docs
+```
+
+Full Swagger UI with all endpoints.
+
+---
+
+## Dashboard Tabs
+
+| Tab | What it shows |
+|---|---|
+| Live Feed | Real-time camera feeds with bounding boxes, scene state table, AI suggestion |
+| Search | Search object history by name across all cameras |
+| Event History | 5-minute AI-generated interval summaries |
+| Chat | Conversational AI — ask anything about your workspace |
+
+---
+
+## Sidebar Configuration
+
+All configuration managed from sidebar — no code changes needed.
+
+| Setting | Description |
+|---|---|
+| Camera Sources | Add up to 4 cameras, label them, switch source type |
+| Detection Classes | Define what objects to detect |
+| Voice Alerts | Toggle voice on/off |
+| Absence Alert Rules | Add any object with custom threshold in minutes |
+| AI Suggestion Interval | 30–300 seconds |
+| Summary Interval | 60–600 seconds |
+| User Category | Switch monitoring profile |
 
 ---
 
 ## Future Roadmap
 
-- CLIP-based visual search ("find my keys")
-- Mobile app integration
-- Smart glasses input
-- Fine-tuned model for desk environment
+- YOLO-World open vocabulary detection — detect any custom object by text description
+- Fine-tuned model on desk/workspace data
 - Multimodal LLM — send raw frames instead of text labels
+- Smart glasses integration
+- Push notifications via Firebase
+- React web dashboard replacing Streamlit
+- Real-time multi-user collaboration
+- Privacy controls — blur faces, local-only mode
+
+---
+
+## License
+
+MIT License — free to use, modify, and distribute.
