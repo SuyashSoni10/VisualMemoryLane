@@ -54,6 +54,10 @@ def main():
         ]
     if "camera_manager" not in st.session_state:
         st.session_state.camera_manager = None
+    if "last_suggestion" not in st.session_state:
+        st.session_state.last_suggestion = "Waiting for first analysis..."
+    if "last_suggestion_time" not in st.session_state:
+        st.session_state.last_suggestion_time = None
 
     # --- SIDEBAR ---
     source = 0  # default
@@ -157,49 +161,59 @@ def main():
 
     # --- TAB 1: Live Feed ---
     with tab1:
-        col1, col2 = st.columns([2.5, 1.5], gap="large")
 
-        with col1:
+        # --- ROW 1: Monitoring Mode + Scene State ---
+        row1_col1, row1_col2 = st.columns([1.5, 2.5], gap="large")
+
+        with row1_col1:
             with st.container(border=True):
-                st.subheader("Live Camera Feed")
-                frame_placeholder = st.empty()
+                st.subheader("Monitoring Mode")
+                category = st.selectbox(
+                    "Select user profile",
+                    options=[
+                        "Student",
+                        "Patient (Alzheimer's)",
+                        "Employee",
+                        "Coach",
+                        "Teacher",
+                        "Personal"
+                    ],
+                    index=5
+                )
+                category_descriptions = {
+                    "Student": "📚 Educational scaffolding and study habit reminders.",
+                    "Patient (Alzheimer's)": "🤍 Gentle, simple, empathetic guidance.",
+                    "Employee": "💼 Professional efficiency and productivity focus.",
+                    "Coach": "🏆 Motivation, performance metrics, tough love.",
+                    "Teacher": "🎓 Pedagogy, lesson flow, classroom management.",
+                    "Personal": "😊 Warm, casual, daily life assistance."
+                }
+                st.info(category_descriptions[category])
 
-        with col2:
+        with row1_col2:
             with st.container(border=True):
                 st.subheader("Scene State")
-                scene_placeholder = st.empty()
-
-            st.subheader("Monitoring Mode")
-            category = st.selectbox(
-                "Select user profile",
-                options=[
-                    "Student",
-                    "Patient (Alzheimer's)",
-                    "Employee",
-                    "Coach",
-                    "Teacher",
-                    "Personal"
-                ],
-                index=5
-            )
-
-            category_descriptions = {
-                "Student": "📚 Educational scaffolding and study habit reminders.",
-                "Patient (Alzheimer's)": "🤍 Gentle, simple, empathetic guidance.",
-                "Employee": "💼 Professional efficiency and productivity focus.",
-                "Coach": "🏆 Motivation, performance metrics, tough love.",
-                "Teacher": "🎓 Pedagogy, lesson flow, classroom management.",
-                "Personal": "😊 Warm, casual, daily life assistance."
-            }
-            st.info(category_descriptions[category])
+                scene_state_placeholder = st.empty()
+                scene_state_placeholder.caption("Scene state will appear here once monitoring starts.")
 
         st.divider()
 
+        # --- ROW 2: AI Suggestion ---
         with st.container(border=True):
             st.subheader("AI Suggestion")
             suggestion_placeholder = st.empty()
+            suggestion_placeholder.caption("AI suggestions will appear here once monitoring starts.")
 
-        st.subheader("Controls")
+        st.divider()
+
+        # --- ROW 3: Camera Feed Toggle + Controls ---
+        feed_col1, feed_col2 = st.columns([3, 1])
+        with feed_col1:
+            show_feed = st.toggle("📷 Show Live Camera Feed", value=False)
+        with feed_col2:
+            pass
+
+        # Controls right below toggle
         control_col1, control_col2 = st.columns(2)
         with control_col1:
             start_btn = st.button("▶ Start Monitoring", use_container_width=True, type="primary")
@@ -210,11 +224,32 @@ def main():
             st.session_state.running = True
         if stop_btn:
             st.session_state.running = False
+            if st.session_state.camera_manager:
+                st.session_state.camera_manager.stop_all()
+                st.session_state.camera_manager = None
+            # Clear all stream placeholders
+            if "stream_placeholders" in st.session_state:
+                for cam_id, ph in st.session_state.stream_placeholders.items():
+                    ph["frame"].empty()
+                del st.session_state.stream_placeholders
+                
 
-        # Detection Loop 
+        # --- ROW 4: Camera Feed (conditional) ---
+        if show_feed:
+            with st.container(border=True):
+                st.subheader("Live Camera Feed")
+                feed_placeholder_area = st.empty()
+
+        # Restore last suggestion on rerun
+        if st.session_state.last_suggestion != "Waiting for first analysis...":
+            suggestion_placeholder.success(
+                f"**Mode:** `{category}`\n\n🕒 **{st.session_state.last_suggestion_time}**\n\n{st.session_state.last_suggestion}"
+            )
+        else:
+            suggestion_placeholder.caption("AI suggestions will appear here once monitoring starts.")
+
+        # --- Detection Loop ---
         if st.session_state.running:
-            
-
             if st.session_state.camera_manager is None:
                 st.session_state.camera_manager = CameraManager()
 
@@ -233,73 +268,80 @@ def main():
                     voice_enabled=voice_enabled
                 )
 
-            # Create placeholders OUTSIDE the loop
-            stream_placeholders = {}
+            # Create feed placeholders per camera only if feed is shown
+            # Always recreate placeholders fresh on each rerun
+            st.session_state.stream_placeholders = {}
             for cam_config in st.session_state.camera_configs:
                 cam_id = cam_config["id"]
-                st.markdown(f"**📷 {cam_config['label']}**")
-                col_feed, col_scene = st.columns([2, 1])
-                with col_feed:
+                if show_feed:
+                    with st.container(border=True):
+                        st.caption(f"📷 {cam_config['label']}")
+                        frame_ph = st.empty()
+                        frame_ph.info("📡 Connecting to camera feed...")
+                else:
                     frame_ph = st.empty()
-                with col_scene:
-                    scene_ph = st.empty()
-                suggestion_ph = st.empty()
-                stream_placeholders[cam_id] = {
-                    "frame": frame_ph,
-                    "scene": scene_ph,
-                    "suggestion": suggestion_ph
-                }
+                    frame_ph.empty()
+                st.session_state.stream_placeholders[cam_id] = {"frame": frame_ph}
 
-            # Now loop only updates placeholders
             while st.session_state.running:
                 streams = manager.get_all_streams()
-
+            
+                # Collect scene state from all cameras
+                all_scene_data = []
                 for cam_id, stream in streams.items():
-                    if cam_id not in stream_placeholders:
-                        continue
-                    
-                    ph = stream_placeholders[cam_id]
-
                     if stream.error:
-                        ph["frame"].error(f"Camera error: {stream.error}")
                         continue
                     
-                    frame = stream.get_frame()
-                    if frame is not None:
-                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        ph["frame"].image(frame_rgb, use_column_width=True)
-
+                    # Update feed if visible
+                    if cam_id in st.session_state.stream_placeholders:
+                        if show_feed:
+                            frame = stream.get_frame()
+                            if frame is not None:
+                                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                                st.session_state.stream_placeholders[cam_id]["frame"].image(
+                                    frame_rgb, use_column_width=True
+                                )
+                            else:
+                                st.session_state.stream_placeholders[cam_id]["frame"].info("📡 Connecting...")
+                        else:
+                            # Feed toggled off — clear placeholder explicitly
+                            st.session_state.stream_placeholders[cam_id]["frame"].empty()
+            
+                    # Collect scene data
                     scene = stream.get_scene()
                     if scene:
-                        table_data = []
                         for obj, data in scene.items():
                             mins = data["duration_seconds"] // 60
                             count = data.get("count", 1)
-                            table_data.append({
+                            all_scene_data.append({
+                                "Camera": cam_id,
                                 "Object": obj,
                                 "Count": count,
                                 "Status": data["status"],
-                                "Mins": mins
+                                "Duration (mins)": mins
                             })
-                        ph["scene"].dataframe(
-                            pd.DataFrame(table_data),
-                            use_container_width=True,
-                            hide_index=True
-                        )
-
+            
+                    # Update AI suggestion from first active stream
                     suggestion, s_time = stream.get_suggestion()
-                    if suggestion:
-                        ph["suggestion"].success(
+                    if suggestion and suggestion != "Waiting...":
+                        st.session_state.last_suggestion = suggestion
+                        st.session_state.last_suggestion_time = s_time
+                        suggestion_placeholder.success(
                             f"**Mode:** `{category}`\n\n🕒 **{s_time}**\n\n{suggestion}"
                         )
-
+            
+                # Update scene state table
+                if all_scene_data:
+                    scene_state_placeholder.dataframe(
+                        pd.DataFrame(all_scene_data),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    scene_state_placeholder.caption("No objects detected yet.")
+            
                 time.sleep(0.05)
-
-        if stop_btn:
-            if st.session_state.camera_manager:
-                st.session_state.camera_manager.stop_all()
-                st.session_state.camera_manager = None
-
+            
     # --- TAB 2: Search ---
     with tab2:
         st.subheader("Search Object History")
