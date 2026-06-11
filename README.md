@@ -211,7 +211,7 @@ vml-mobile/                  # React Native mobile app
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/SuyashSoni10/visual-memory-lane.git
+git clone https://github.com/SuyashSoni10/VisualMemoryLane.git
 cd visual-memory-lane
 ```
 
