@@ -23,7 +23,7 @@ DeepSORT — Per-ID Object Tracking
         ↓
 Temporal Tracker — Object Persistence Over Time
         ↓
-Groq LLaMA 3.1 — Scene Reasoning + Conversational AI
+Groq GPT-OSS-20B — Scene Reasoning + Conversational AI
         ↓
 Action Layer — Voice Alerts + Desktop Notifications + Logging
         ↓
@@ -41,7 +41,7 @@ Streamlit Dashboard + React Native Mobile App
 - Real-time object detection via YOLO11
 - Per-ID object tracking via DeepSORT — distinguishes multiple instances of the same class
 - Multi-camera support — up to 4 simultaneous camera feeds
-- LLM-powered smart suggestions every 60 seconds via Groq LLaMA 3.1
+- LLM-powered smart suggestions every 60 seconds via Groq GPT-OSS-20B
 - Conversational chat interface — ask questions about your workspace in natural language
 - AI-generated 5-minute interval summaries stored in PostgreSQL
 - User category system — 6 profiles with tailored AI reasoning
@@ -140,7 +140,7 @@ Run up to 4 simultaneous camera feeds from the sidebar. Each camera runs in its 
 | Detection | YOLO11 (Ultralytics) |
 | Tracking | DeepSORT |
 | Visual search | CLIP (OpenAI) |
-| LLM reasoning | Groq LLaMA 3.1 8B Instant |
+| LLM reasoning | Groq GPT-OSS-20B |
 | Backend API | FastAPI + Uvicorn |
 | Database | PostgreSQL via SQLAlchemy |
 | Auth | JWT via python-jose + passlib |
