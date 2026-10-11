@@ -3,18 +3,33 @@ import cv2
 from ultralytics import YOLO
 import logging
 
-# Change this to switch camera source:
+# Default fallback camera source:
 # 0 = laptop webcam
 # 1 = DroidCam USB (Android)
 # "http://192.168.x.x:8080/video" = IP Webcam stream
-#SOURCE = "http://172.25.235.218:8080/video"
 SOURCE = 0
+
+def resolve_source(source):
+    if source is None:
+        return SOURCE
+    if isinstance(source, int):
+        return source
+    if isinstance(source, str):
+        src_lower = source.strip().lower()
+        if src_lower in ("0", "webcam"):
+            return 0
+        elif src_lower in ("1", "droidcam usb"):
+            return 1
+        else:
+            return source.strip()
+    return source
+
 class Detector:
     def __init__(self, source=None, custom_classes=None):
         #Loading the YOLO11 model
         logging.getLogger("ultralytics").setLevel(logging.WARNING)
         self.model = YOLO("yolo11n.pt", verbose=False)
-        self.source = source if source is not None else SOURCE
+        self.source = resolve_source(source)
         self.custom_classes = custom_classes  # stored but not used with YOLO11
         self.cap = None
     
