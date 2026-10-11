@@ -22,5 +22,5 @@ COPY . .
 # Expose ports
 EXPOSE 8501 8000
 
-# Default command runs both services
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port 8000 & streamlit run main.py --server.port 8501 --server.address 0.0.0.0"]
+# Default command runs both services. Streamlit uses Render's dynamic $PORT (or 8501 locally).
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port 8000 & streamlit run main.py --server.port ${PORT:-8501} --server.address 0.0.0.0"]
