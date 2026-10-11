@@ -250,6 +250,9 @@ class ContextEngine:
 
     def _notify(self, title, message):
         try:
+            # Truncate to prevent ValueError: string too long (max 256 chars) in Windows toast notification threads
+            if len(message) > 250:
+                message = message[:247] + "..."
             notification.notify(title=title, message=message, timeout=5)
         except Exception:
             pass
