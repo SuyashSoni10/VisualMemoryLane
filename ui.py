@@ -84,7 +84,7 @@ def main():
                 else:
                     source = st.text_input(
                         "IP stream URL",
-                        value="http://192.168.x.x:8080/video",
+                        value="https://x.x.x.x:8080/video",
                         key=f"cam_ip_{i}"
                     )
                 delete_cam = st.button("Remove", key=f"del_cam_{i}")
